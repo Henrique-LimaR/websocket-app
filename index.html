@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width"> 
+  <meta http-equiv="X-UA-compatible" content="IE=edge"> 
+  <head>The message in websocket</head>
+
+  <body>
+    <output id="messages"></output>
+    <script>
+      const messages = document.getElementById("messages"); 
+      const socket = new WebSocket('ws://localhost:3232');
+      socket.onopen = (event) => {
+        console.log('WebSocket is connected');
+        const id = Math.round(Math.random() * 100);
+        console.log('seding...', id);
+        const data = JSON.stringify({
+          id,
+          name: `${id} Henrique Lima`,
+          adress: {
+            street: 'my baby the',
+            number: 32 * id
+          },
+          profession: 'developer'
+        })
+
+        socket.send(data);
+      }
+      socket.onmessage = (msg) => console.log('I got a message', msg);
+      socket.onerror = (error) => console.log('Webscocket server error!', error);
+      socket.onclose = (event) => console.log('Disconnected websocket from server!');
+    </script>
+ </body>
+</html>
