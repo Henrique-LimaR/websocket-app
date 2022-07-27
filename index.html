@@ -1,35 +1,70 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width"> 
-  <meta http-equiv="X-UA-compatible" content="IE=edge"> 
+  <meta name="viewport" content="width=device-width">
+  <meta http-equiv="X-UA-compatible" content="IE=edge">
+
   <head>The message in websocket</head>
 
-  <body>
-    <output id="messages"></output>
-    <script>
-      const messages = document.getElementById("messages"); 
-      const socket = new WebSocket('ws://localhost:3232');
-      socket.onopen = (event) => {
-        console.log('WebSocket is connected');
-        const id = Math.round(Math.random() * 100);
-        console.log('seding...', id);
-        const data = JSON.stringify({
-          id,
-          name: `${id} Henrique Lima`,
-          adress: {
-            street: 'my baby the',
-            number: 32 * id
-          },
-          profession: 'developer'
-        })
+<body>
+  <output id="messages"></output>
+  <script>
+    const messages = document.getElementById("messages");
+    const socket = new WebSocket('ws://localhost:3232');
+    socket.onopen = (event) => {
+      console.log('WebSocket is connected');
+      const id = Math.round(Math.random() * 100);
+      console.log('seding...', id);
 
-        socket.send(data);
-      }
-      socket.onmessage = (msg) => console.log('I got a message', msg);
-      socket.onerror = (error) => console.log('Webscocket server error!', error);
-      socket.onclose = (event) => console.log('Disconnected websocket from server!');
-    </script>
- </body>
+      const intervalID = setInterval(() => {
+        const data = JSON.stringify(
+          [
+            {
+              id,
+              name: `${id} Henrique`,
+              adress: {
+                street: 'my baby the',
+                number: 32 * id
+              },
+              profession: 'developer'
+            },
+            {
+              id,
+              name: `${id} Peter Parker`,
+              adress: {
+                street: 'my baby the',
+                number: 32 * id
+              },
+              profession: 'spider man'
+            },
+            {
+              id,
+              name: `${id} Mary Janny`,
+              adress: {
+                street: 'girl friend from spider man!',
+                number: 32 * id
+              },
+              profession: 'developer'
+            },
+          ])
+
+      socket.send(data);
+    }, 1000);
+
+    setTimeout(() => {
+      clearInterval(intervalID);
+    }, 5000);
+    };
+    socket.onmessage = (msg) => {
+      const message = msg.data;
+      console.log("I'm got a message:", message)
+      messages.innerHTML += `<br/> ${message}`
+    }
+    socket.onerror = (error) => console.log('Webscocket server error!', error);
+    socket.onclose = (event) => console.log('Disconnected websocket from server!');
+  </script>
+</body>
+
 </html>

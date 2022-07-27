@@ -2,8 +2,9 @@
   import { createHash } from "node:crypto";
   
   const PORT = 3232;
-  const WEBSOCKET_MAGIC_STRING_KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'; 
 
+  const WEBSOCKET_MAGIC_STRING_KEY = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'; 
+  const MAXIMUM_SIXTEENBITS_INTEGER = 2 ** 16; // 0 to 65536
   const SEVEN_BITS_INTEGER_MARKER = 125;
   const SIXTEEN_BITS_INTEGER_MARKER = 126; 
   const SIXTFOUR_BITS_INTEGER_MARKER = 127;
@@ -23,25 +24,25 @@ server.on('upgrade', onSocketUpgrade);
 
 function onSocketUpgrade(req, socket, head) {
   const { 
-    "sec-websocket-key": webSocketClient 
+    "sec-websocket-key": webSocketClientKey 
   } = req.headers;
  
-  console.log(`${webSocketClient} connected!`);
+  console.log(`${webSocketClientKey} connected!`);
 
-  const headers = prepareHandeSakeHeaders(webSocketClient);
+  const headers = prepareHandeSakeHeaders(webSocketClientKey);
   
   socket.write(headers);
   socket.on('readable', () => onSocketReadable(socket));
 };
 
 function sendMessage(msg, socket){
-  const dataFrameBuffer = prepareMessage(msg)
-  socket.write(dataFrameBuffer)
+  const data = prepareMessage(msg)
+  socket.write(data)
 };
 
-function prepareMessage(msg){
-  const msgBuffer = Buffer.from(msg);
-  const messageSize = msgBuffer.length;
+function prepareMessage(message){
+  const msg = Buffer.from(message);
+  const messageSize = msg.length;
   let dataFrameBuffer;
 
   // 0x80 
@@ -50,6 +51,23 @@ function prepareMessage(msg){
   if(messageSize <= SEVEN_BITS_INTEGER_MARKER){
     const bytes = [firstByte];
     dataFrameBuffer = Buffer.from(bytes.concat(messageSize));
+  }
+  else if(messageSize <= MAXIMUM_SIXTEENBITS_INTEGER){
+    const offSetFourBytes = 4;
+    const target = Buffer.allocUnsafe(offSetFourBytes);
+
+    target[0] = firstByte;
+    target[1] = SIXTEEN_BITS_INTEGER_MARKER | 0x0; // just to know the mask.
+
+    target.writeUInt16BE(messageSize, 2);
+    dataFrameBuffer = target;
+
+    //alloc 4 bytes
+    // [0] - 128 + 1 - 10000001 fin + opcode  
+    // [1] - 126 + 0 - payload length marker + mask indicator
+    // [2] 0 - content length
+    // [3] 171 - content length
+    // [4 - ...] - the message itself
   }
   else {
     throw new Error('message too long buddy :|');
@@ -88,8 +106,7 @@ function prepareHandeSakeHeaders(id){
 };
 
 function onSocketReadable(socket){
-  socket.read(1)
-
+  socket.read(1);
   // 1 - 1 byte - 8bits
   const [markerAndPayloadLength] = socket.read(1);
   // because first bit is always 1 for client-to-server messages.
@@ -101,20 +118,24 @@ function onSocketReadable(socket){
   if(lentghIndicatorInBits <= SEVEN_BITS_INTEGER_MARKER){
     messageLength = lentghIndicatorInBits;
   }
+  else if(lentghIndicatorInBits === SIXTEEN_BITS_INTEGER_MARKER){
+    // unsigned, big-begian 16-bit integer [0 -16k] - 2 ** 16
+    messageLength = socket.read(2).readUint16BE(0);
+  }
   else {
     throw new Error("your message is too long! we don't handle 64-bit messages")
   };
 
   const maskKey = socket.read(MASK_KEY_BYTES_LENGTH);
-  const encode = socket.read(messageLength);
-  const decode = unmask(encode, maskKey);
-  const received = decode.toString('utf8');
+  const encoded = socket.read(messageLength);
+  const decoded = unmask(encoded, maskKey);
+  const received = decoded.toString('utf8');
   const data = JSON.parse(received);
   
   console.log('message received!', data);
   const msg = JSON.stringify({
     message: data,
-    at: new Date().toISOString() 
+    at: new Date().toISOString()
   });
   sendMessage(msg, socket)
 };
@@ -138,8 +159,8 @@ function unmask(encodedBuffer, maskKey){
         unmaskingcalc: `${toBynary(encodedBuffer[index])} ^ ${toBynary(maskKey[index % MASK_KEY_BYTES_LENGTH])} = ${toBynary(finalBuffer[index])}`,
         decoded: getCharFromBinary(finalBuffer[index])
       }
-
-      console.log(logger);
+      
+    console.log(logger)
     };
 
   return finalBuffer;
